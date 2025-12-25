@@ -1,3 +1,4 @@
+
 /* 
 	baud rate = 115,200
 	
@@ -17,14 +18,10 @@ module uart(
 	output reg tx_active, rx_active,
 	output reg tx_complete, rx_complete
 );
-	reg [1:0] state_tx;
-	reg [1:0] state_rx;
-	
-	reg [9:0] shift_reg_t;
-	reg [9:0] shift_reg_r;
-	
-	reg [8:0] counter;
-	reg [3:0] index;
+	reg [1:0] state_tx,state_rx;	
+	reg [9:0] shift_reg_t, shift_reg_r;
+	reg [8:0] counter_tx, counter_rx;
+	reg [3:0] index_tx, index_rx;
 	
 	parameter [8:0] clk_per_bit = 9'd434;
 	
@@ -39,8 +36,11 @@ module uart(
 		shift_reg_r = 0;
 		shift_reg_t = 0;
 		
-		counter = 0;
-		index = 0;
+		counter_tx = 0;
+		counter_rx = 0;
+		
+		index_tx = 0;
+		index_rx = 9;
 		
 		t_bit = 0;
 		data_out = 0;
@@ -49,6 +49,66 @@ module uart(
 		tx_active = 0;
 		rx_active = 0;
 	end
+	
+	//Receiver logic
+	always @(posedge clk or posedge reset) begin
+		if(reset) begin
+			state_rx = ideal;
+			shift_reg_r = 0;	
+			rx_complete = 0;			
+			rx_active = 0;
+			data_out = 0;
+		end
+		else begin
+			case (state_rx)
+				ideal: begin
+					if(!r_bit) begin
+						rx_active = 1;
+						state_rx = transmitte;
+					end
+					else begin
+						state_rx = ideal;
+					end
+				end
+				
+				transmitte: begin
+					if(counter_rx == 217) begin
+						shift_reg_r[9] = r_bit;
+					end
+					
+					if(counter_rx < clk_per_bit) begin
+						counter_rx = counter_rx + 1;
+						state_rx = transmitte;
+					end
+					else begin
+						shift_reg_r = shift_reg_r >> 1;
+						counter_rx = 0;
+						if(index_rx > 0) begin
+							index_rx = index_rx - 1;
+							state_rx = transmitte;
+						end
+						else begin
+							state_rx = clean_up;
+							rx_active = 0;
+							rx_complete = 1;
+						end
+					end
+				end
+				
+				clean_up: begin
+					rx_complete = 0;
+					data_out = shift_reg_r[8:1];
+					index_rx = 9;
+					state_rx = ideal;
+				end			
+				
+				default: begin
+					state_rx = ideal;
+				end
+			endcase
+		end
+	end
+	
 	
 	// Transmitter logic	
 	always @(posedge clk or posedge reset) begin
@@ -59,8 +119,8 @@ module uart(
 			tx_complete = 0;
 			tx_active = 0;
 			
-			counter = 0;
-			index = 0;
+			counter_tx = 0;
+			index_tx = 0;
 		end
 		else begin
 			case (state_tx)
@@ -78,13 +138,13 @@ module uart(
 				
 				transmitte: begin
 					t_bit = shift_reg_t[0];
-					if(counter < clk_per_bit) begin
-						counter = counter + 1;
+					if(counter_tx < clk_per_bit) begin
+						counter_tx = counter_tx + 1;
 						state_tx = transmitte;
 					end
 					else begin
-						counter = 0;
-						if(index < 9) begin
+						counter_tx = 0;
+						if(index_tx < 9) begin
 							state_tx = transmitte;
 						end
 						else begin
@@ -100,6 +160,7 @@ module uart(
 				clean_up: begin
 					t_bit = 1;
 					tx_complete = 0;
+					index_tx = 0;
 					state_tx = ideal;
 				end
 				
