@@ -10,7 +10,7 @@ module uart(
 	input [7:0]data_in,
 	input tx_start, clk, reset,
 	
-	//input r_bit,
+	input r_bit,
 	output reg t_bit,
 	output reg [7:0]data_out,
 	
@@ -21,7 +21,6 @@ module uart(
 	reg [9:0] shift_reg_t, shift_reg_r;
 	reg [8:0] counter_tx, counter_rx;
 	reg [3:0] index_tx, index_rx;
-	reg r_bit;
 	
 	parameter [8:0] clk_per_bit = 9'd434;
 	
@@ -50,9 +49,6 @@ module uart(
 		rx_active = 0;
 	end
 		
-	always @(clk) begin
-		r_bit = t_bit;
-		end
 		
 	//Receiver logic
 	always @(posedge clk or posedge reset) begin
@@ -134,7 +130,6 @@ module uart(
 				ideal: begin
 					if(tx_start == 1)begin
 						tx_active = 1;
-						t_bit = 0;
 						shift_reg_t = {1'b1, data_in, 1'b0};
 						state_tx = communicatioin;
 					end
