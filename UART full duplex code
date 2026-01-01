@@ -11,7 +11,7 @@ module uart(
 	input tx_start, clk, reset,
 	
 	input r_bit,
-	output reg t_bit,
+	output reg t_bit,extra,
 	output reg [7:0]data_out,
 	
 	output reg tx_active, rx_active,
@@ -29,84 +29,71 @@ module uart(
 	parameter [1:0] clean_up = 2'b10;
 	
 	initial begin
-		state_tx = ideal;
-		state_rx = ideal;
-		
-		shift_reg_r = 0;
-		shift_reg_t = 0;
-		
-		counter_tx = 0;
-		counter_rx = 0;
-		
-		index_tx = 0;
-		index_rx = 9;
-		
 		t_bit = 1;
-		data_out = 0;
-		tx_complete = 0;
-		rx_complete = 0;
-		tx_active = 0;
-		rx_active = 0;
 	end
 		
 		
 	//Receiver logic
 	always @(posedge clk or posedge reset) begin
 		if(reset) begin
-			state_rx = ideal;
-			shift_reg_r = 0;
-			counter_rx = 0;
-			rx_complete = 0;			
-			rx_active = 0;
-			data_out = 0;
+			state_rx <= ideal;
+			shift_reg_r <= 0;
+			
+			rx_complete <= 0;			
+			rx_active <= 0;
+			data_out <= 0;
+			
+			counter_rx <= 0;
+			index_rx <= 0;
 		end
 		else begin
 			case (state_rx)
 				ideal: begin
 					if(!r_bit) begin
-						rx_active = 1;
-						state_rx = communicatioin;
+						rx_active <= 1;
+						state_rx <= communicatioin;
 					end
 					else begin
-						state_rx = ideal;
+						state_rx <= ideal;
 					end
 				end
 				
 				communicatioin: begin
-					if(counter_rx == 434) begin
-						shift_reg_r[9] = r_bit;
+					if(counter_rx == 217) begin
+						shift_reg_r[9] <= r_bit;
 					end
 					
 					if(counter_rx < clk_per_bit) begin
-						counter_rx = counter_rx + 1;
-						state_rx = communicatioin;
+						counter_rx <= counter_rx + 1;
+						state_rx <= communicatioin;
 					end
 					else begin
-						shift_reg_r = shift_reg_r >> 1;
-						counter_rx = 0;
-						if(index_rx >= 0) begin
-							index_rx = index_rx - 1;
-							state_rx = communicatioin;
+						//shift_reg_r <= shift_reg_r >> 1;
+						shift_reg_r <= {1'b0, shift_reg_r[9:1]};
+						counter_rx <= 0;
+						if(index_rx < 10) begin
+							index_rx <= index_rx + 1;
+							state_rx <= communicatioin;
 						end
 						else begin
-							state_rx = clean_up;
-							rx_active = 0;
-							rx_complete = 1;
+							state_rx <= clean_up;
+							rx_complete <= 1;
+							rx_active <= 0;
 						end
 					end
 				end
 				
 				clean_up: begin
-					data_out = shift_reg_r[8:1];
-					index_rx = 9;
-					state_rx = ideal;
-					shift_reg_r = 0;
-					counter_rx = 0;
-					rx_complete = 0;			
+					state_rx <= ideal;
+					shift_reg_r <= 0;
+					rx_complete <= 0;	
+					
+					counter_rx <= 0;
+					index_rx <= 9;		
 				end			
 				
 				default: begin
-					state_rx = ideal;
+					state_rx <= ideal;
 				end
 			endcase
 		end
@@ -115,63 +102,65 @@ module uart(
 	
 	// Transmitter logic	
 	always @(posedge clk or posedge reset) begin
+		extra <= t_bit;
 		if(reset) begin
-			state_tx = ideal;	
-			shift_reg_t = 0;			
-			t_bit = 1;
+			state_tx <= ideal;
+			shift_reg_t <= 0;
+			t_bit <= 1;
 			tx_complete = 0;
 			tx_active = 0;
 			
-			counter_tx = 0;
-			index_tx = 0;
+			counter_tx <= 0;
+			index_tx <= 0;
 		end
 		else begin
 			case (state_tx)
 				ideal: begin
 					if(tx_start == 1)begin
-						tx_active = 1;
-						shift_reg_t = {1'b1, data_in, 1'b0};
-						state_tx = communicatioin;
+						tx_active <= 1;
+						shift_reg_t <= {1'b1, data_in, 1'b0};
+						state_tx <= communicatioin;
 					end
 					else begin
-						state_tx = ideal;
+						state_tx <= ideal;
 					end
 				end
 				
 				communicatioin: begin
-					t_bit = shift_reg_t[0];
+					t_bit <= shift_reg_t[0];
 					if(counter_tx < clk_per_bit) begin
-						counter_tx = counter_tx + 1;
-						state_tx = communicatioin;
+						counter_tx <= counter_tx + 1;
+						state_tx <= communicatioin;
 					end
 					else begin
-						shift_reg_t = shift_reg_t>>1;
-						counter_tx = 0;
+						//shift_reg_t <= shift_reg_t>>1;
+						shift_reg_t <= {1'b0, shift_reg_t[9:1]};
+						counter_tx <= 0;
 						if(index_tx < 10) begin
-							index_tx = index_tx + 1;
-							state_tx = communicatioin;
+							index_tx <= index_tx + 1;
+							state_tx <= communicatioin;
 						end
 						else begin
-							state_tx = clean_up;
-							tx_complete = 1;
-							tx_active = 0;
+							state_tx <= clean_up;
+							tx_complete <= 1;
+							tx_active <= 0;
 						end
 					end
 				end
 
 				
 				clean_up: begin
-					state_tx = ideal;	
-					shift_reg_t = 0;			
-					t_bit = 1;
-					tx_complete = 0;
+					state_tx <= ideal;	
+					shift_reg_t <= 0;			
+					t_bit <= 1;
+					tx_complete <= 0;
 			
-					counter_tx = 0;
-					index_tx = 0;
+					counter_tx <= 0;
+					index_tx <= 0;
 				end
 				
 				default: begin
-					state_tx = ideal;
+					state_tx <= ideal;
 				end
 			endcase
 		end
